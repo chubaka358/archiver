@@ -1,6 +1,5 @@
 package com.javarush.task.task31.task3110;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
@@ -9,29 +8,35 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class FileManager {
-	private Path rootPath;
-	private List<Path> fileList;
+    private Path rootPath;
+    private List<Path> fileList;
 
-	public List<Path> getFileList() {
-		return fileList;
-	}
+    public FileManager(Path rootPath) throws IOException {
+        this.rootPath = rootPath;
+        this.fileList = new ArrayList<>();
+        collectFileList(rootPath);
+    }
 
-	public FileManager(Path rootPath) throws IOException {
-		this.rootPath = rootPath;
-		fileList = new ArrayList<>();
-		collectFileList(rootPath);
-	}
+    public List<Path> getFileList() {
+        return fileList;
+    }
 
-	private void collectFileList(Path path) throws IOException{
-		if (Files.isRegularFile(path)){
-			Path pathRelative = rootPath.relativize(path);
-			fileList.add(pathRelative);
-		} else if (Files.isDirectory(path)){
-			try (DirectoryStream<Path> directoryStream = Files.newDirectoryStream(path)){
-				for (Path entry : directoryStream){
-					collectFileList(entry);
-				}
-			}
-		}
-	}
+    private void collectFileList(Path path) throws IOException {
+        // Добавляем только файлы
+        if (Files.isRegularFile(path)) {
+            Path relativePath = rootPath.relativize(path);
+            fileList.add(relativePath);
+        }
+
+        // Добавляем содержимое директории
+        if (Files.isDirectory(path)) {
+            // Рекурсивно проходимся по всему содержмому директории
+            // Чтобы не писать код по вызову close для DirectoryStream, обернем вызов newDirectoryStream в try-with-resources
+            try (DirectoryStream<Path> directoryStream = Files.newDirectoryStream(path)) {
+                for (Path file : directoryStream) {
+                    collectFileList(file);
+                }
+            }
+        }
+    }
 }
