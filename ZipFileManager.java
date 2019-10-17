@@ -6,16 +6,18 @@ import com.javarush.task.task31.task3110.exception.WrongZipFileException;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.file.CopyOption;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
 
-import static java.nio.file.StandardOpenOption.CREATE;
+import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 
 public class ZipFileManager {
     // Полный путь zip файла
@@ -52,6 +54,37 @@ public class ZipFileManager {
 
                 // Если переданный source не директория и не файл, бросаем исключение
                 throw new PathIsNotFoundException();
+            }
+        }
+    }
+
+    public void extractAll(Path outputFolder) throws Exception {
+        // Проверяем существует ли zip файл
+        if (!Files.isRegularFile(zipFile)) {
+            throw new WrongZipFileException();
+        }
+
+        try (ZipInputStream zipInputStream = new ZipInputStream(Files.newInputStream(zipFile))) {
+            // Создаем директорию вывода, если она не существует
+            if (Files.notExists(outputFolder))
+                Files.createDirectories(outputFolder);
+
+            // Проходимся по содержимому zip потока (файла)
+            ZipEntry zipEntry = zipInputStream.getNextEntry();
+
+            while (zipEntry != null) {
+                String fileName = zipEntry.getName();
+                Path fileFullName = outputFolder.resolve(fileName);
+
+                // Создаем необходимые директории
+                Path parent = fileFullName.getParent();
+                if (Files.notExists(parent))
+                    Files.createDirectories(parent);
+
+                try (OutputStream outputStream = Files.newOutputStream(fileFullName)) {
+                    copyData(zipInputStream, outputStream);
+                }
+                zipEntry = zipInputStream.getNextEntry();
             }
         }
     }
@@ -103,24 +136,29 @@ public class ZipFileManager {
         }
     }
 
-    public void extractAll(Path outputFolder) throws Exception{
-        if (!Files.isRegularFile(zipFile))
+    public void removeFiles(List<Path> pathList) throws Exception{
+        if(!Files.isRegularFile(zipFile))
             throw new WrongZipFileException();
-
-        try(ZipInputStream inputStream = new ZipInputStream(Files.newInputStream(zipFile))){
-            ZipEntry zipEntry;
-
-            while((zipEntry = inputStream.getNextEntry()) != null){
-                String zipEntryName = zipEntry.getName();
-                Path fileFullPath = outputFolder.resolve(zipEntryName);
-                Path fileParent = fileFullPath.getParent();
-                if (Files.notExists(fileParent))
-                    Files.createDirectories(fileParent);
-
-                try(OutputStream outputStream = Files.newOutputStream(outputFolder.resolve(fileFullPath))){
-                    copyData(inputStream, outputStream);
+        Path tmpFile = Files.createTempFile("zipFile", null);
+        try(ZipInputStream zipInputStream = new ZipInputStream(Files.newInputStream(zipFile))){
+            try(ZipOutputStream zipOutputStream = new ZipOutputStream(Files.newOutputStream(tmpFile))) {
+                ZipEntry zipEntry;
+                while ((zipEntry = zipInputStream.getNextEntry()) != null) {
+                    if (pathList.contains(Paths.get(zipEntry.getName()))) {
+                        ConsoleHelper.writeMessage("Файл " + zipEntry.getName() + " был удален.");
+                    } else {
+                        zipOutputStream.putNextEntry(zipEntry);
+                        copyData(zipInputStream, zipOutputStream);
+                        zipOutputStream.closeEntry();
+                        zipInputStream.closeEntry();
+                    }
                 }
             }
         }
+        Files.move(tmpFile, zipFile, REPLACE_EXISTING);
+    }
+
+    public void removeFile(Path path) throws Exception{
+        removeFiles(Collections.singletonList(path));
     }
 }
