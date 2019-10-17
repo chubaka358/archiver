@@ -8,11 +8,14 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
+
+import static java.nio.file.StandardOpenOption.CREATE;
 
 public class ZipFileManager {
     // Полный путь zip файла
@@ -97,6 +100,27 @@ public class ZipFileManager {
         int len;
         while ((len = in.read(buffer)) > 0) {
             out.write(buffer, 0, len);
+        }
+    }
+
+    public void extractAll(Path outputFolder) throws Exception{
+        if (!Files.isRegularFile(zipFile))
+            throw new WrongZipFileException();
+
+        try(ZipInputStream inputStream = new ZipInputStream(Files.newInputStream(zipFile))){
+            ZipEntry zipEntry;
+
+            while((zipEntry = inputStream.getNextEntry()) != null){
+                String zipEntryName = zipEntry.getName();
+                Path fileFullPath = outputFolder.resolve(zipEntryName);
+                Path fileParent = fileFullPath.getParent();
+                if (Files.notExists(fileParent))
+                    Files.createDirectories(fileParent);
+
+                try(OutputStream outputStream = Files.newOutputStream(outputFolder.resolve(fileFullPath))){
+                    copyData(inputStream, outputStream);
+                }
+            }
         }
     }
 }
